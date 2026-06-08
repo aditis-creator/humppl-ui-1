@@ -83,7 +83,7 @@ export async function createOrganization(name: string, industry: string, website
 export async function getContacts() {
   const { data, error } = await supabase
     .from('contacts')
-    .select('*, organizations(name)')
+    .select('*, organizations(id, name)')
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return data || []
@@ -112,6 +112,130 @@ export async function createContact(
       data[0].id
     )
   }
+  return data ? data[0] : null
+}
+
+export async function createContactWithOrgOnly(
+  firstName: string,
+  lastName: string,
+  email: string,
+  jobTitle: string,
+  organizationName: string,
+  organizationIndustry: string,
+  organizationWebsite: string,
+  noteContent: string,
+  createdBy: string
+) {
+  let orgId: number
+  const { data: existingOrgs, error: findError } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('name', organizationName)
+    .limit(1)
+
+  if (findError) throw new Error(findError.message)
+
+  if (existingOrgs && existingOrgs.length > 0) {
+    orgId = existingOrgs[0].id
+  } else {
+    const { data: newOrg, error: orgError } = await supabase
+      .from('organizations')
+      .insert([{ name: organizationName, industry: organizationIndustry, website_url: organizationWebsite }])
+      .select()
+    if (orgError) throw new Error(orgError.message)
+    orgId = newOrg[0].id
+  }
+
+  const { data: newContact, error: contactError } = await supabase
+    .from('contacts')
+    .insert([{ first_name: firstName, last_name: lastName, email, job_title: jobTitle, organization_id: orgId }])
+    .select()
+
+  if (contactError) throw new Error(contactError.message)
+  const contact = newContact[0]
+
+  if (noteContent && contact) {
+    await createNote(noteContent, undefined, orgId, contact.id, createdBy || 'System')
+  }
+
+  if (contact) {
+    await logActivity(
+      'Contact Added',
+      `Created contact: ${firstName} ${lastName}`,
+      'contact_created',
+      undefined,
+      orgId,
+      contact.id
+    )
+  }
+
+  return contact
+}
+
+export async function updateContact(
+  contactId: number,
+  firstName: string,
+  lastName: string,
+  email: string,
+  jobTitle: string,
+  organizationName: string,
+  organizationIndustry: string,
+  organizationWebsite: string,
+  createdBy: string,
+  modifiedBy: string
+) {
+  let orgId: number
+  const { data: existingOrgs, error: findError } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('name', organizationName)
+    .limit(1)
+
+  if (findError) throw new Error(findError.message)
+
+  if (existingOrgs && existingOrgs.length > 0) {
+    orgId = existingOrgs[0].id
+  } else {
+    const { data: newOrg, error: orgError } = await supabase
+      .from('organizations')
+      .insert([{ name: organizationName, industry: organizationIndustry, website_url: organizationWebsite }])
+      .select()
+    if (orgError) throw new Error(orgError.message)
+    orgId = newOrg[0].id
+  }
+
+  const { data, error } = await supabase
+    .from('contacts')
+    .update({ first_name: firstName, last_name: lastName, email, job_title: jobTitle, organization_id: orgId })
+    .eq('id', contactId)
+    .select()
+
+  if (error) throw new Error(error.message)
+
+  if (data && data[0]) {
+    const updateNote = `Contact updated by ${modifiedBy || createdBy}.`;
+    await createNote(updateNote, undefined, orgId, contactId, modifiedBy || createdBy)
+    await logActivity(
+      'Contact Updated',
+      `Updated contact: ${firstName} ${lastName}`,
+      'contact_updated',
+      undefined,
+      orgId,
+      contactId
+    )
+  }
+
+  return data ? data[0] : null
+}
+
+export async function deleteContact(contactId: number) {
+  const { data, error } = await supabase
+    .from('contacts')
+    .delete()
+    .eq('id', contactId)
+    .select()
+
+  if (error) throw new Error(error.message)
   return data ? data[0] : null
 }
 

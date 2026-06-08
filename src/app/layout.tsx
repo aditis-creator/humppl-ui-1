@@ -4,6 +4,7 @@ import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
 import TopNavbar from "@/components/layout/TopNavbar";
 import WorkflowNavigator from "@/components/layout/WorkflowNavigator";
+import { ContactsProvider } from "@/context/ContactsContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,8 +25,10 @@ export default function RootLayout({
         <div className="flex flex-col flex-1 w-full min-w-0 overflow-hidden">
           <TopNavbar />
           <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-            {children}
-            <WorkflowNavigator />
+            <ContactsProvider>
+              {children}
+              <WorkflowNavigator />
+            </ContactsProvider>
           </main>
         </div>
       </body>

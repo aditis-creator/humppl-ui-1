@@ -94,7 +94,18 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         getNotes(id),
         getActivityTimeline(id)
       ]);
-      setNotes(notesData);
+      // merge any locally imported notes saved by Import Notes page
+      try {
+        const stored = localStorage.getItem('imported_notes')
+        if (stored) {
+          const imported = JSON.parse(stored) as Note[]
+          setNotes([...imported, ...notesData])
+        } else {
+          setNotes(notesData)
+        }
+      } catch (e) {
+        setNotes(notesData)
+      }
       setTimeline(logsData);
     } catch (err: any) {
       console.error("Failed to load details:", err);
@@ -103,6 +114,19 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const handler = () => {
+      const stored = localStorage.getItem('imported_notes')
+      if (!stored) return
+      try {
+        const imported = JSON.parse(stored) as Note[]
+        setNotes(prev => [...imported, ...prev])
+      } catch (e) {}
+    }
+    window.addEventListener('imported-notes-updated', handler)
+    return () => window.removeEventListener('imported-notes-updated', handler)
+  }, [])
 
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
